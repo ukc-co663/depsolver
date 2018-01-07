@@ -1,0 +1,22 @@
+[ { "name"  : "A"
+  , "version" : "2.01"
+  , "size" : 1672
+  , "depends" :
+    [ [ "B>=3.1", "C=1" ]
+    , [ "D" ]] }
+, { "name" : "B"
+  , "version" : "3.0"
+  , "size" : 83619 }
+, { "name" : "B"
+  , "version" : "3.2"
+  , "size" : 211234
+  , "conflicts" : [ "B<3.2" ] }
+, { "name" : "C"
+  , "version" : "1"
+  , "size" : 23
+  , "conflicts" : [ "B" ]
+  , "depends" : [] }
+, { "name" : "D"
+  , "version" : "10.3.1"
+  , "size" : 88847
+  , "conflicts" : [ "B>=3.0" ] } ]
