@@ -77,7 +77,7 @@ class Command:
 
 class PackageRange:
   def __init__(self, rangestr):
-    m = re.match('([a-zA-Z])((=|<|>|<=|>=)([.0-9]+))?', rangestr)
+    m = re.match('([a-zA-Z0-9-]+)((=|<|>|<=|>=)([.0-9]+))?', rangestr)
     if not m:
       error('bad package range format: {}'.format(rangestr))
     self.name = m.group(1)
@@ -237,7 +237,7 @@ def main():
       if c.package not in state:
         error('package not installed: {}'.format(c.package))
       state.remove(c.package)
-      cost += 1
+      cost += 1000000
     if not valid():
       error('command leads to invalid state: {}'.format(c))
   for c in final_constraints:
