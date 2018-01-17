@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 from argparse import ArgumentParser
+from collections import defaultdict
 from functools import total_ordering
 
 import re
@@ -50,7 +51,7 @@ class Version:
 
 class Package:
   def __init__(self, reference):
-    if not re.match('[a-zA-Z]+=[.0-9]+', reference):
+    if not re.match('[.+a-zA-Z0-9-]+=[.0-9]+', reference):
       error('bad package format: {}'.format(reference))
     [n, v] = reference.split('=')
     self.name = n
@@ -77,7 +78,7 @@ class Command:
 
 class PackageRange:
   def __init__(self, rangestr):
-    m = re.match('([a-zA-Z0-9-]+)((=|<|>|<=|>=)([.0-9]+))?', rangestr)
+    m = re.match('([.+a-zA-Z0-9-]+)((=|<|>|<=|>=)([.0-9]+))?', rangestr)
     if not m:
       error('bad package range format: {}'.format(rangestr))
     self.name = m.group(1)
@@ -96,17 +97,33 @@ class PackageRange:
 
   def __repr__(self):
     r = self.name
-    if self.minimum:
+    if self.minimum and not self.maximum:
       r += '>'
-    if self.maximum:
+    if self.maximum and not self.minimum:
       r += '<'
     if self.inclusive:
       r += '='
     if self.minimum:
       r += str(self.minimum)
-    if self.maximum:
+    elif self.maximum:
       r += str(self.maximum)
     return r
+
+  def __hash__(self):
+    h = 0
+    h = 31 * h + hash(self.name)
+    h = 31 * h + hash(self.minimum)
+    h = 31 * h + hash(self.maximum)
+    h = 31 * h + hash(self.inclusive)
+    return h
+
+  def __eq__(self, other):
+    ok = True
+    ok = ok and self.name == other.name
+    ok = ok and self.minimum == other.minimum
+    ok = ok and self.maximum == other.maximum
+    ok = ok and self.inclusive == other.inclusive
+    return ok
 
   def has(self, package):
     if self.name != package.name:
@@ -140,12 +157,12 @@ class Constraint:
     self.kind = constraintstr[0]
     self.packageRange = PackageRange(constraintstr[1:])
 
-  def satisfiedBy(self, package):
-    inRange = self.packageRange.has(package)
+  def satisfied(self):
+    has = any(self.packageRange.has(p) for p in state)
     if self.kind == '+':
-      return inRange
+      return has
     else:
-      return not inRange
+      return not has
 
   def __repr__(self):
     return '{}{}'.format(self.kind, self.packageRange)
@@ -196,24 +213,116 @@ def load_all(args):
     load_repository(json.load(f))
 
 
-def satisfies(constraint):
-  for p in state:
-    if constraint.satisfiedBy(p):
-      return True
-  return False
-
 def valid():
   for p in state:
     if p not in repository:
       return False
   for p in state:
     for clause in repository[p].depends:
-      if not any(satisfies(Constraint('+{}'.format(qr))) for qr in clause):
+      if not any(Constraint('+{}'.format(qr)).satisfied() for qr in clause):
         return False
   for p in state:
-    if any(satisfies(Constraint('+{}'.format(qr))) for qr in repository[p].conflicts):
+    if any(Constraint('+{}'.format(qr)).satisfied() for qr in repository[p].conflicts):
       return False
   return True
+
+clauses = None
+occurrences = None
+packages = None
+rpackages = None
+watches = None
+
+class Unsat(Exception):
+  def __init__(self, ps):
+    self.clause = ps
+  def __str__(self):
+    return ' '.join(self.s(p) for p in self.clause)
+  def s(self, p):
+    return ('+' if p > 0 else '-') + str(packages[abs(p)])
+
+def find_watch(ps):
+  for p in ps:
+    if p < 0:
+      if packages[-p] not in state:
+        return p
+    else:
+      if packages[p] in state:
+        return p
+  raise Unsat(ps)
+
+def preprocess_repository():
+  global repository
+  global clauses
+  global occurrences
+  global packages
+  global rpackages
+  global watches
+
+  # We'll refer to packages by positive integers.
+  packages = [None] + list(repository.keys())
+  rpackages = { packages[i] : i for i in range(1, len(packages)) }
+
+  # For each PackageRange in the repo, compute which packages it matches.
+  pranges = set()
+  for props in repository.values():
+    for clause in props.depends:
+      for constraint in clause:
+        pranges.add(constraint)
+    for constraint in props.conflicts:
+      pranges.add(constraint)
+  versions = defaultdict(list)
+  for package in repository.keys():
+    versions[package.name].append(package.version)
+  inrange = {} # lists all packages in a given range, by their indices
+  for r in pranges:
+    inrange[r] = []
+    for v in versions[r.name]:
+      p = Package('{}={}'.format(r.name, v))
+      if r.has(p):
+        inrange[r].append(rpackages[p])
+
+  # Add clauses for depends and conflicts.
+  clauses = []
+  occurrences = defaultdict(set)
+  for package, props in repository.items():
+    p = rpackages[package]
+    for dclause in props.depends:
+      n = len(clauses)
+      new_clause = [-p]
+      occurrences[-p].add(n)
+      for r in dclause:
+        for q in inrange[r]:
+          new_clause.append(q)
+          occurrences[q].add(n)
+      clauses.append(new_clause)
+    for r in props.conflicts:
+      for q in inrange[r]:
+        n = len(clauses)
+        new_clause = [-p, -q]
+        occurrences[-p].add(n)
+        occurrences[-q].add(n)
+        clauses.append(new_clause)
+  watches = [find_watch(c) for c in clauses]
+
+def set_literal(p):
+  for c in occurrences[-p]:
+    if watches[c] == -p:
+      watches[c] = find_watch(clauses[c])
+
+def install_package(package):
+  if package in state:
+    error('package already installed: {}'.format(package))
+  if package not in repository:
+    error('package not in repository: {}'.format(package))
+  state.add(package)
+  set_literal(rpackages[package])
+
+def uninstall_package(package):
+  if package not in state:
+    error('package not installed: {}'.format(package))
+  state.remove(package)
+  set_literal(-rpackages[package])
+
 
 def main():
   global commands
@@ -222,26 +331,23 @@ def main():
   global repository
   args = argparser.parse_args()
   load_all(args)
-  if not valid():
-    error('initial state is invalid')
+  try:
+    preprocess_repository()
+  except Unsat as e:
+    error('invalid initial state; unsat constraint {}'.format(e))
   cost = 0
   for c in commands:
-    if c.action == '+':
-      if c.package in state:
-        error('package already installed: {}'.format(c.package))
-      if c.package not in repository:
-        error('package not in repository: {}'.format(c.package))
-      state.add(c.package)
-      cost += repository[c.package].size
-    else:
-      if c.package not in state:
-        error('package not installed: {}'.format(c.package))
-      state.remove(c.package)
-      cost += 1000000
-    if not valid():
-      error('command leads to invalid state: {}'.format(c))
+    try:
+      if c.action == '+':
+        install_package(c.package)
+        cost += repository[c.package].size
+      else:
+        uninstall_package(c.package)
+        cost += 1000000
+    except Unsat as e:
+      error('bad command {}; unsat constraint {}'.format(c, e))
   for c in final_constraints:
-    if not satisfies(c):
+    if not c.satisfied():
       error('constraint not satisfied: {}'.format(c))
   sys.stdout.write('cost {}\n'.format(cost))
 
