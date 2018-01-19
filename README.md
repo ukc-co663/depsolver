@@ -21,7 +21,7 @@ cd depsolver
 make all
 ```
 
-2. Each test consists of three files (REOSITORY, INITIAL, and CONSTRAINTS), as
+2. Each test consists of three files (REPOSITORY, INITIAL, and CONSTRAINTS), as
 described in the problem statement. Your solver is run on each test, and its
 output scored using these commands:
 
