@@ -26,13 +26,13 @@ described in the problem statement. Your solver is run on each test, and its
 output scored using these commands:
 
 ```
-( ulimit -t 60 -v 1000000 ; ./solve REPOSITORY INITIAL CONSTRAINTS > COMMANDS )
+( ulimit -t 300 -v 1000000 ; ./solve REPOSITORY INITIAL CONSTRAINTS > COMMANDS )
 judge.py REPOSITORY INITIAL COMMANDS CONSTRAINTS
 ```
 
 The limit on time and memory is necessary for pragmatic reasons: we cannot
 wait forever to see if a program eventually produces an answer, and the server
-has a limited amount of memory. If 1min of runtime and 1GB of memory is not
+has a limited amount of memory. If 5min of runtime and 1GB of memory is not
 enough for your program, then it probably has a serious problem with efficiency
 anyway. Fix it.
 
