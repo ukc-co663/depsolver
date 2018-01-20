@@ -11,7 +11,7 @@ Grading
 You will be graded automatically, using the command
 
 ```
-./outside-test.sh YOUR_GITHUB_USENAME
+./outside-test.sh YOUR_GITHUB_USERNAME
 ```
 
 If this command does not produce sensible output, you get 0 marks.
