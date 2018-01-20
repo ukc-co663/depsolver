@@ -71,7 +71,7 @@ def main():
   sys.stdout.write('<th>Test</th>')
   sys.stdout.write('<th>MinCost</th>')
   sys.stdout.write('</tr>\n')
-  for t in seen_tests + unseen_tests:
+  for t in seen_tests:
     sys.stdout.write('<tr><td>{}</td><td>{}</td></tr>\n'.format(t, min_cost[t]))
   sys.stdout.write('</table>\n')
 
