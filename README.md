@@ -1,8 +1,8 @@
 Homework: Dependency Solver
 ===========================
 
-Continue reading here only after you read the problem description you were
-given in lectures.
+Continue reading here only after you read
+  [the problem description](https://rgrig.github.io/plad/homework.html).
 
 
 Grading
