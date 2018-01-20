@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import datetime
 import sys
 
 def none_min(a, b):
@@ -48,6 +49,8 @@ def main():
       if costs[u][t] is not None:
         score += 1
       points[u].append(score)
+  now = datetime.datetime.now()
+  sys.stdout.write('<p>updated: {}</p>\n'.format(now.strftime('%d %B %Y')))
   sys.stdout.write('<table class="scoreboard">\n')
   sys.stdout.write('<tr>\n')
   sys.stdout.write('  <th>Username</th>\n')
