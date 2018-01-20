@@ -27,7 +27,7 @@ state = None
 repository = None
 
 def error(m):
-  sys.stderr.write('E: {}\n'.format(m))
+  sys.stdout.write('E: {}\n'.format(m))
   sys.exit(1)
 
 @total_ordering
