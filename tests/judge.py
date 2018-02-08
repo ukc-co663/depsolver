@@ -157,13 +157,6 @@ class Constraint:
     self.kind = constraintstr[0]
     self.packageRange = PackageRange(constraintstr[1:])
 
-  def satisfied(self):
-    has = any(self.packageRange.has(p) for p in state)
-    if self.kind == '+':
-      return has
-    else:
-      return not has
-
   def __repr__(self):
     return '{}{}'.format(self.kind, self.packageRange)
 
@@ -227,10 +220,12 @@ def valid():
   return True
 
 clauses = None
+repo_clauses_count = None
 occurrences = None
 packages = None
 rpackages = None
-watches = None
+watches = None  # watches[c] is some literal which makes the clause c true (could be None)
+unsat_clauses = None
 
 class Unsat(Exception):
   def __init__(self, ps):
@@ -241,6 +236,7 @@ class Unsat(Exception):
     return ('+' if p > 0 else '-') + str(packages[abs(p)])
 
 def find_watch(ps):
+  global packages
   for p in ps:
     if p < 0:
       if packages[-p] not in state:
@@ -248,14 +244,26 @@ def find_watch(ps):
     else:
       if packages[p] in state:
         return p
-  raise Unsat(ps)
+  return None
 
-def preprocess_repository():
-  global repository
+def set_watch(c):
+  global clauses
+  global watches
+  global unsat_clauses
+  if watches[c] is None:
+    unsat_clauses.remove(c)
+  watches[c] = find_watch(clauses[c])
+  if watches[c] is None:
+    unsat_clauses.add(c)
+
+def preprocess():
   global clauses
   global occurrences
   global packages
+  global repo_clauses_count
+  global repository
   global rpackages
+  global unsat_clauses
   global watches
 
   # We'll refer to packages by positive integers.
@@ -268,8 +276,10 @@ def preprocess_repository():
     for clause in props.depends:
       for constraint in clause:
         pranges.add(constraint)
-    for constraint in props.conflicts:
-      pranges.add(constraint)
+    for r in props.conflicts:
+      pranges.add(r)
+  for constraint in final_constraints:
+    pranges.add(constraint.packageRange)
   versions = defaultdict(list)
   for package in repository.keys():
     versions[package.name].append(package.version)
@@ -284,30 +294,46 @@ def preprocess_repository():
   # Add clauses for depends and conflicts.
   clauses = []
   occurrences = defaultdict(set)
+  def add_clause(one_clause):
+    n = len(clauses)
+    for l in one_clause:
+      occurrences[l].add(n)
+    clauses.append(one_clause)
   for package, props in repository.items():
     p = rpackages[package]
     for dclause in props.depends:
-      n = len(clauses)
       new_clause = [-p]
-      occurrences[-p].add(n)
       for r in dclause:
         for q in inrange[r]:
           new_clause.append(q)
-          occurrences[q].add(n)
-      clauses.append(new_clause)
+      add_clause(new_clause)
     for r in props.conflicts:
       for q in inrange[r]:
-        n = len(clauses)
-        new_clause = [-p, -q]
-        occurrences[-p].add(n)
-        occurrences[-q].add(n)
-        clauses.append(new_clause)
-  watches = [find_watch(c) for c in clauses]
+        add_clause([-p, -q])
+  repo_clauses_count = len(clauses)
+
+  # Add clauses for final_constraints.
+  for constraint in final_constraints:
+    if constraint.kind == '-':
+      for q in inrange[constraint.packageRange]:
+        add_clause([-q])
+    else:
+      add_clause(list(inrange[constraint.packageRange]))
+
+  # Initialize watches.
+  watches = [None for _ in clauses]
+  unsat_clauses = set(range(len(clauses)))
+  for c in range(len(clauses)):
+    set_watch(c)
 
 def set_literal(p):
   for c in occurrences[-p]:
     if watches[c] == -p:
-      watches[c] = find_watch(clauses[c])
+      set_watch(c)
+  for c in occurrences[p]:
+    if watches[c] is None:
+      watches[c] = p
+      unsat_clauses.remove(c)
 
 def install_package(package):
   if package in state:
@@ -331,24 +357,22 @@ def main():
   global repository
   args = argparser.parse_args()
   load_all(args)
-  try:
-    preprocess_repository()
-  except Unsat as e:
+  preprocess()
+  if any(c < repo_clauses_count for c in unsat_clauses):
     error('invalid initial state; unsat constraint {}'.format(e))
   cost = 0
   for c in commands:
-    try:
-      if c.action == '+':
-        install_package(c.package)
-        cost += repository[c.package].size
-      else:
-        uninstall_package(c.package)
-        cost += 1000000
-    except Unsat as e:
+    if c.action == '+':
+      install_package(c.package)
+      cost += repository[c.package].size
+    else:
+      uninstall_package(c.package)
+      cost += 1000000
+    if any(c < repo_clauses_count for c in unsat_clauses):
       error('bad command {}; unsat constraint {}'.format(c, e))
-  for c in final_constraints:
-    if not c.satisfied():
-      error('constraint not satisfied: {}'.format(c))
+  if unsat_clauses:
+    c = unsat_clauses.pop()
+    error('constraint not satisfied: {}'.format(c))
   sys.stdout.write('cost {}\n'.format(cost))
 
 if __name__ == '__main__':
