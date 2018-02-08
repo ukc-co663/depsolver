@@ -239,6 +239,17 @@ def set_watch(c):
   if watches[c] is None:
     unsat_clauses.add(c)
 
+def add_clause(one_clause):
+  global clauses
+  global watches
+  n = len(clauses)
+  for l in one_clause:
+    occurrences[l].add(n)
+  clauses.append(one_clause)
+  watches.append(None)
+  unsat_clauses.add(n)
+  set_watch(n)
+
 def preprocess():
   global clauses
   global occurrences
@@ -278,12 +289,9 @@ def preprocess():
 
   # Add clauses for depends and conflicts.
   clauses = []
+  watches = []
+  unsat_clauses = set()
   occurrences = defaultdict(set)
-  def add_clause(one_clause):
-    n = len(clauses)
-    for l in one_clause:
-      occurrences[l].add(n)
-    clauses.append(one_clause)
   for package, props in repository.items():
     p = rpackages[package]
     for dclause in props.depends:
@@ -305,15 +313,14 @@ def preprocess():
     else:
       add_clause(list(inrange[constraint.packageRange]))
 
-  # Initialize watches.
-  watches = [None for _ in clauses]
-  unsat_clauses = set(range(len(clauses)))
-  for c in range(len(clauses)):
-    set_watch(c)
-
 def set_literal(p):
   if val[abs(p)] == p:
     return
+  val[abs(p)] = p
+  if p < 0:
+    state.remove(packages[-p])
+  else:
+    state.add(packages[p])
   for c in occurrences[-p]:
     if watches[c] == -p:
       set_watch(c)
@@ -321,11 +328,6 @@ def set_literal(p):
     if watches[c] is None:
       watches[c] = p
       unsat_clauses.remove(c)
-  val[abs(p)] = p
-  if p < 0:
-    state.remove(packages[-p])
-  else:
-    state.add(packages[p])
 
 def install_package(package):
   if package in state:
