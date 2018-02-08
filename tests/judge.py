@@ -361,15 +361,16 @@ def main():
   if any(c < repo_clauses_count for c in unsat_clauses):
     error('invalid initial state; unsat constraint {}'.format(e))
   cost = 0
-  for c in commands:
-    if c.action == '+':
-      install_package(c.package)
-      cost += repository[c.package].size
+  for cmd in commands:
+    if cmd.action == '+':
+      install_package(cmd.package)
+      cost += repository[cmd.package].size
     else:
-      uninstall_package(c.package)
+      uninstall_package(cmd.package)
       cost += 1000000
-    if any(c < repo_clauses_count for c in unsat_clauses):
-      error('bad command {}; unsat constraint {}'.format(c, e))
+    for c in unsat_clauses:
+      if c < repo_clauses_count:
+        error('bad command {}; unsat constraint {}'.format(cmd, Unsat(clauses[c])))
   if unsat_clauses:
     c = unsat_clauses.pop()
     error('constraint not satisfied: {}'.format(c))
