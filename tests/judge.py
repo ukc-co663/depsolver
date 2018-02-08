@@ -205,20 +205,6 @@ def load_all(args):
   with open(args.repository) as f:
     load_repository(json.load(f))
 
-
-def valid():
-  for p in state:
-    if p not in repository:
-      return False
-  for p in state:
-    for clause in repository[p].depends:
-      if not any(Constraint('+{}'.format(qr)).satisfied() for qr in clause):
-        return False
-  for p in state:
-    if any(Constraint('+{}'.format(qr)).satisfied() for qr in repository[p].conflicts):
-      return False
-  return True
-
 clauses = None
 repo_clauses_count = None
 occurrences = None
@@ -226,6 +212,7 @@ packages = None
 rpackages = None
 watches = None  # watches[c] is some literal which makes the clause c true (could be None)
 unsat_clauses = None
+val = None # val[v] in [v, -v]
 
 class Unsat(Exception):
   def __init__(self, ps):
@@ -236,14 +223,10 @@ class Unsat(Exception):
     return ('+' if p > 0 else '-') + str(packages[abs(p)])
 
 def find_watch(ps):
-  global packages
+  global val
   for p in ps:
-    if p < 0:
-      if packages[-p] not in state:
-        return p
-    else:
-      if packages[p] in state:
-        return p
+    if val[abs(p)] == p:
+      return p
   return None
 
 def set_watch(c):
@@ -264,11 +247,13 @@ def preprocess():
   global repository
   global rpackages
   global unsat_clauses
+  global val
   global watches
 
   # We'll refer to packages by positive integers.
   packages = [None] + list(repository.keys())
   rpackages = { packages[i] : i for i in range(1, len(packages)) }
+  val = [None] + [i if packages[i] in state else -i for i in range(1,len(packages))]
 
   # For each PackageRange in the repo, compute which packages it matches.
   pranges = set()
@@ -327,6 +312,8 @@ def preprocess():
     set_watch(c)
 
 def set_literal(p):
+  if val[abs(p)] == p:
+    return
   for c in occurrences[-p]:
     if watches[c] == -p:
       set_watch(c)
@@ -334,26 +321,28 @@ def set_literal(p):
     if watches[c] is None:
       watches[c] = p
       unsat_clauses.remove(c)
+  val[abs(p)] = p
+  if p < 0:
+    state.remove(packages[-p])
+  else:
+    state.add(packages[p])
 
 def install_package(package):
   if package in state:
     error('package already installed: {}'.format(package))
   if package not in repository:
     error('package not in repository: {}'.format(package))
-  state.add(package)
   set_literal(rpackages[package])
 
 def uninstall_package(package):
   if package not in state:
     error('package not installed: {}'.format(package))
-  state.remove(package)
   set_literal(-rpackages[package])
 
 
 def main():
   global commands
   global final_constraints
-  global state
   global repository
   args = argparser.parse_args()
   load_all(args)
