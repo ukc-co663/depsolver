@@ -329,6 +329,9 @@ def set_literal(p):
       watches[c] = p
       unsat_clauses.remove(c)
 
+def flip_var(v):
+  set_literal(-val[v])
+
 def install_package(package):
   if package in state:
     error('package already installed: {}'.format(package))
