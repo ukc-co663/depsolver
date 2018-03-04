@@ -10,7 +10,8 @@ RUN apt-get -y update && apt-get -y install \
   rustc \
   git \
   build-essential \
-  m4
+  m4 \
+  vim
 RUN opam init -y
 RUN opam switch install 4.06.0
 CMD /bin/bash

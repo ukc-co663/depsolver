@@ -50,7 +50,7 @@ def main():
         score += 1
       points[u].append(score)
   now = datetime.datetime.now()
-  sys.stdout.write('<p>updated: {}</p>\n'.format(now.strftime('%d %B %Y')))
+  sys.stdout.write('<p>updated: {}</p>\n'.format(now.strftime('%d %B %Y at %H:%M')))
   sys.stdout.write('<table class="scoreboard">\n')
   sys.stdout.write('<tr>\n')
   sys.stdout.write('  <th>Username</th>\n')
