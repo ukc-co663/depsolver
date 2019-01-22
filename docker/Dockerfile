@@ -1,4 +1,4 @@
-FROM ubuntu:16.04
+FROM ubuntu:18.04
 RUN mkdir /depsolver
 WORKDIR /depsolver
 RUN apt-get -y update && apt-get -y install \
@@ -13,5 +13,5 @@ RUN apt-get -y update && apt-get -y install \
   m4 \
   vim
 RUN opam init -y
-RUN opam switch install 4.06.0
+RUN opam switch install 4.07.0
 CMD /bin/bash
