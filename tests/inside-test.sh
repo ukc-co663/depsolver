@@ -23,6 +23,6 @@ done
 for T in $TESTS; do
   echo "TEST $T"
   TD=$D/$T
-  ( ulimit -t 300 -m 1000000 ; ./solve $TD/repository.json $TD/initial.json $TD/constraints.json > commands.json 2> stderr ) && \
+  ( ulimit -t 300 -m 1000000 ; ./solve $TD/repository.json $TD/initial.json $TD/constraints.json 2> stderr | tee commands.json ) && \
   $D/judge.py $TD/repository.json $TD/initial.json commands.json $TD/constraints.json
 done
