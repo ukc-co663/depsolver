@@ -5,4 +5,4 @@ nothing:
 	@echo "to use the pre-built one.)"
 
 docker:
-	docker build -t ukc-co663-depsolver .
+	docker build -t rgrig/ukc-co663-depsolver .
